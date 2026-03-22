@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Edit2, Copy, Trash2 } from "lucide-react"
+import { Edit2, Copy, MoreHorizontal, Trash2 } from "lucide-react"
 import { Badge } from "#/components/ui/badge"
 import {
   Dialog,
@@ -8,8 +8,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "#/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "#/components/ui/dropdown-menu"
 import { Button } from "#/components/ui/button"
-import { ActionsMenu } from "#/components/shared/actions-menu"
 
 interface Project {
   id: string
@@ -109,14 +115,39 @@ function ProjectCard({ project, onEdit, onDelete, onDuplicate, onSelect }: Proje
         <div className="flex flex-col flex-1 p-4 gap-3 min-w-0">
           {/* Top row: name + status + actions */}
           <div className="flex items-center gap-2">
-            <span className="min-w-0 shrink truncate font-semibold text-sm leading-snug">
+            <span className="flex-1 min-w-0 truncate font-semibold text-sm leading-snug">
               {project.name}
             </span>
-            <Badge variant={statusBadgeVariant(project.status)} className="capitalize text-xs shrink-0">
-              {project.status}
-            </Badge>
-            <div className="shrink-0 ml-auto -mr-1" onClick={(e) => e.stopPropagation()}>
-              <ActionsMenu actions={actions} />
+            <div className="flex items-center shrink-0">
+              <Badge variant={statusBadgeVariant(project.status)} className="capitalize text-xs shrink-0">
+                {project.status}
+              </Badge>
+              <div
+                className="overflow-hidden w-0 group-hover:w-[22px] transition-all duration-150 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="w-[22px] flex items-center justify-center">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="p-0.5 rounded cursor-pointer text-muted-foreground hover:text-foreground">
+                      <MoreHorizontal className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {actions.map((action, i) => (
+                        <span key={i}>
+                          {action.separator && i > 0 && <DropdownMenuSeparator />}
+                          <DropdownMenuItem
+                            variant={action.variant === "destructive" ? "destructive" : "default"}
+                            onClick={(e) => { e.stopPropagation(); action.onClick() }}
+                          >
+                            <action.icon className="size-4" />
+                            {action.label}
+                          </DropdownMenuItem>
+                        </span>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
             </div>
           </div>
 
