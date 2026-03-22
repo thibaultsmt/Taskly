@@ -78,19 +78,58 @@ fn windows_listener(app: AppHandle) {
 
 #[cfg(target_os = "macos")]
 fn macos_listener(app: AppHandle) {
-    use std::process::Command;
+    use core_foundation_sys::base::CFRelease;
+    use core_foundation_sys::notification_center::{
+        CFNotificationCenterAddObserver, CFNotificationCenterGetDistributedCenter,
+        CFNotificationCenterRef, CFNotificationSuspensionBehaviorDeliverImmediately,
+    };
+    use core_foundation_sys::runloop::CFRunLoopRun;
+    use core_foundation_sys::string::{
+        kCFStringEncodingUTF8, CFStringCreateWithBytes, CFStringRef,
+    };
+    use std::ffi::c_void;
 
-    loop {
-        let output = Command::new("bash")
-            .arg("-c")
-            .arg("log stream --predicate 'eventMessage contains \"Screen is now unlocked\"' --style compact 2>/dev/null | head -1")
-            .output();
-
-        if output.is_ok() {
-            emit_unlock(&app);
+    extern "C" fn on_screen_unlocked(
+        _center: CFNotificationCenterRef,
+        observer: *mut c_void,
+        _name: CFStringRef,
+        _object: *const c_void,
+        _user_info: core_foundation_sys::dictionary::CFDictionaryRef,
+    ) {
+        if !observer.is_null() {
+            unsafe {
+                let app = &*(observer as *const AppHandle);
+                emit_unlock(app);
+            }
         }
+    }
 
-        std::thread::sleep(std::time::Duration::from_millis(500));
+    let app_ptr = Box::into_raw(Box::new(app)) as *mut c_void;
+
+    unsafe {
+        let center = CFNotificationCenterGetDistributedCenter();
+
+        let notification_name = b"com.apple.screenIsUnlocked";
+        let name_ref = CFStringCreateWithBytes(
+            std::ptr::null_mut(),
+            notification_name.as_ptr(),
+            notification_name.len() as _,
+            kCFStringEncodingUTF8,
+            0,
+        );
+
+        CFNotificationCenterAddObserver(
+            center,
+            app_ptr,
+            on_screen_unlocked,
+            name_ref,
+            std::ptr::null(),
+            CFNotificationSuspensionBehaviorDeliverImmediately,
+        );
+
+        CFRelease(name_ref as _);
+
+        CFRunLoopRun();
     }
 }
 

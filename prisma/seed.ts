@@ -6,14 +6,9 @@ async function main() {
   console.log('🌱 Starting seed...')
 
   // Create a default team for testing
-  const team = await prisma.team.upsert({
-    where: { key: 'DEV' },
-    update: {},
-    create: {
-      name: 'Development Team',
-      key: 'DEV',
-    },
-  })
+  const team =
+    (await prisma.team.findFirst({ where: { key: 'DEV' } })) ??
+    (await prisma.team.create({ data: { name: 'Development Team', key: 'DEV' } }))
 
   console.log(`✅ Created team: ${team.name}`)
 
@@ -28,9 +23,10 @@ async function main() {
 
   for (const state of workflowStates) {
     await prisma.workflowState.upsert({
-      where: { teamId_name: { teamId: team.id, name: state.name } },
+      where: { id: `seed-${team.id}-${state.name}` },
       update: {},
       create: {
+        id: `seed-${team.id}-${state.name}`,
         ...state,
         teamId: team.id,
       },
