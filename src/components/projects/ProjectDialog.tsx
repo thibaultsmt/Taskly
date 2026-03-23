@@ -131,7 +131,10 @@ function ProjectDialog({
       queryClient.invalidateQueries({
         queryKey: projectsQueryOptions(teamId).queryKey,
       })
-      sileo.success({ title: "Project created" })
+      sileo.success({
+        title: "Projet créé",
+        description: "Un nouveau projet. Les ambitions sont infinies, le temps un peu moins.",
+      })
       onOpenChange(false)
     },
     onError: (error: Error) => {
@@ -141,7 +144,10 @@ function ProjectDialog({
       ) {
         setErrors({ key: "This key is already used in this team" })
       } else {
-        sileo.error({ title: "Failed to create project" })
+        sileo.error({
+          title: "Raté",
+          description: "Le projet n'a pas pu être créé. Dommage.",
+        })
       }
     },
   })
@@ -158,11 +164,17 @@ function ProjectDialog({
       queryClient.invalidateQueries({
         queryKey: projectsQueryOptions(teamId).queryKey,
       })
-      sileo.success({ title: "Project updated" })
+      sileo.success({
+        title: "Projet mis à jour",
+        description: "Peaufiné. La perfection, c'est un processus.",
+      })
       onOpenChange(false)
     },
     onError: () => {
-      sileo.error({ title: "Failed to update project" })
+      sileo.error({
+        title: "Raté",
+        description: "La mise à jour a échoué. Le projet résiste au changement.",
+      })
     },
   })
 

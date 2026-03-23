@@ -134,7 +134,7 @@ function CreateTeamDialog({
       onOpenChange(false)
       setName("")
       setKey("")
-      void navigate({ to: "/teams/$teamId/issues", params: { teamId: team.id } })
+      void navigate({ to: "/teams/$teamId/tasks", params: { teamId: team.id } })
     },
     onError: (e: Error) => sileo.error({ title: e.message }),
   })
@@ -250,7 +250,7 @@ function SidebarNav({
                 <DropdownMenuItem
                   key={t.id}
                   onClick={() =>
-                    void navigate({ to: "/teams/$teamId/issues", params: { teamId: t.id } })
+                    void navigate({ to: "/teams/$teamId/tasks", params: { teamId: t.id } })
                   }
                 >
                   <div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
@@ -272,7 +272,7 @@ function SidebarNav({
                 <DropdownMenuItem
                   key={t.id}
                   onClick={() =>
-                    void navigate({ to: "/teams/$teamId/issues", params: { teamId: t.id } })
+                    void navigate({ to: "/teams/$teamId/tasks", params: { teamId: t.id } })
                   }
                 >
                   <div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
@@ -482,9 +482,10 @@ function TeamHeader({
       >
         <MessageSquare className="size-3.5" />
         <span>Chat</span>
-        <kbd className="ml-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-          ⌘K
-        </kbd>
+        <span className="ml-1 flex items-center gap-0.5">
+          <kbd className="rounded border border-border bg-muted px-1 py-px font-mono text-[10px] leading-none text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))]">⌘</kbd>
+          <kbd className="rounded border border-border bg-muted px-1 py-px font-mono text-[10px] leading-none text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))]">K</kbd>
+        </span>
       </Button>
       <Button
         variant="ghost"
@@ -528,7 +529,7 @@ function TeamsManagementDialog({
       void queryClient.invalidateQueries({ queryKey: ["teams"] })
       const remaining = teams.filter((t) => t.id !== teamId)
       if (remaining.length > 0) {
-        void navigate({ to: "/teams/$teamId/issues", params: { teamId: remaining[0].id } })
+        void navigate({ to: "/teams/$teamId/tasks", params: { teamId: remaining[0].id } })
       }
     },
     onError: (e: Error) => sileo.error({ title: e.message }),

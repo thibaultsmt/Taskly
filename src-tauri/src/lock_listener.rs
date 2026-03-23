@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 
 #[derive(Clone, serde::Serialize)]
 pub struct UnlockPayload {
@@ -6,6 +6,12 @@ pub struct UnlockPayload {
 }
 
 pub fn start_lock_listener(app: AppHandle) {
+    #[cfg(target_os = "windows")]
+    start_keyboard_hook(app.clone());
+
+    #[cfg(target_os = "macos")]
+    start_keyboard_hook_macos(app.clone());
+
     std::thread::spawn(move || {
         #[cfg(target_os = "windows")]
         windows_listener(app);
@@ -159,6 +165,11 @@ fn linux_listener(app: AppHandle) {
 }
 
 fn emit_unlock(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -166,4 +177,222 @@ fn emit_unlock(app: &AppHandle) {
 
     app.emit("screen-unlocked", UnlockPayload { timestamp: ts })
         .expect("Failed to emit screen-unlocked event");
+}
+
+#[cfg(target_os = "macos")]
+fn emit_pre_lock(app: &AppHandle) {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let _ = app.emit("pre-lock", UnlockPayload { timestamp: ts });
+}
+
+#[cfg(target_os = "windows")]
+static KB_HOOK_APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "windows")]
+pub fn start_keyboard_hook(app: AppHandle) {
+    use windows::Win32::Foundation::LPARAM;
+    use windows::Win32::Foundation::WPARAM;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_L, VK_LWIN, VK_RWIN,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HC_ACTION,
+        KBDLLHOOKSTRUCT, WH_KEYBOARD_LL,
+    };
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+
+    let _ = KB_HOOK_APP.set(app.clone());
+
+    std::thread::spawn(move || {
+        unsafe extern "system" fn low_level_keyboard_proc(
+            n_code: i32,
+            w_param: WPARAM,
+            l_param: LPARAM,
+        ) -> windows::Win32::Foundation::LRESULT {
+            use windows::Win32::UI::Input::KeyboardAndMouse::{
+                GetAsyncKeyState, VK_L, VK_LWIN, VK_RWIN,
+            };
+            use windows::Win32::UI::WindowsAndMessaging::{
+                CallNextHookEx, KBDLLHOOKSTRUCT, HC_ACTION,
+            };
+
+            if n_code as u32 == HC_ACTION && w_param.0 as u32 == 0x0100 /* WM_KEYDOWN */ {
+                let kb = &*(l_param.0 as *const KBDLLHOOKSTRUCT);
+                let is_l_key = kb.vkCode == VK_L.0 as u32;
+                let win_pressed = GetAsyncKeyState(VK_LWIN.0 as i32) as u16 & 0x8000 != 0
+                    || GetAsyncKeyState(VK_RWIN.0 as i32) as u16 & 0x8000 != 0;
+
+                if is_l_key && win_pressed {
+                    if let Some(app) = KB_HOOK_APP.get() {
+                        let ts = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+                        let _ = app.emit("pre-lock", UnlockPayload { timestamp: ts });
+                    }
+                    return windows::Win32::Foundation::LRESULT(1);
+                }
+            }
+
+            CallNextHookEx(None, n_code, w_param, l_param)
+        }
+
+        unsafe {
+            let h_module = GetModuleHandleW(None).unwrap_or_default();
+            let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(low_level_keyboard_proc), h_module, 0)
+                .expect("Failed to set keyboard hook");
+
+            use windows::Win32::UI::WindowsAndMessaging::LockWorkStation;
+            app.listen("confirm-lock", move |_| {
+                let _ = LockWorkStation();
+            });
+
+            use windows::Win32::UI::WindowsAndMessaging::{GetMessageW, DispatchMessageW, TranslateMessage, MSG};
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, None, 0, 0).into() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+
+            UnhookWindowsHookEx(hook).ok();
+        }
+    });
+}
+
+
+#[cfg(target_os = "macos")]
+static KB_HOOK_APP_MAC: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "macos")]
+fn request_accessibility_if_needed() {
+    use core_foundation_sys::base::{kCFAllocatorDefault, CFRelease, CFTypeRef};
+    use core_foundation_sys::dictionary::{
+        CFDictionaryCreate, kCFTypeDictionaryKeyCallBacks, kCFTypeDictionaryValueCallBacks,
+    };
+    use core_foundation_sys::string::CFStringRef;
+    use std::ffi::c_void;
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        static kCFBooleanTrue: *const c_void;
+    }
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        static kAXTrustedCheckOptionPrompt: CFStringRef;
+        fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
+    }
+
+    unsafe {
+        if AXIsProcessTrustedWithOptions(std::ptr::null()) {
+            return;
+        }
+        let keys: [*const c_void; 1] = [kAXTrustedCheckOptionPrompt as *const c_void];
+        let values: [*const c_void; 1] = [kCFBooleanTrue as *const c_void];
+        let dict = CFDictionaryCreate(
+            kCFAllocatorDefault as _,
+            keys.as_ptr() as _,
+            values.as_ptr() as _,
+            1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks,
+        );
+        AXIsProcessTrustedWithOptions(dict as _);
+        CFRelease(dict as CFTypeRef);
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn start_keyboard_hook_macos(app: AppHandle) {
+    request_accessibility_if_needed();
+
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn CGEventTapCreate(
+            tap: u32,
+            place: u32,
+            options: u32,
+            events_of_interest: u64,
+            callback: unsafe extern "C" fn(
+                proxy: *mut c_void,
+                event_type: u32,
+                event: *mut c_void,
+                user_info: *mut c_void,
+            ) -> *mut c_void,
+            user_info: *mut c_void,
+        ) -> *mut c_void;
+        fn CFMachPortCreateRunLoopSource(
+            alloc: *const c_void, port: *mut c_void, order: isize,
+        ) -> *mut c_void;
+        fn CFRunLoopGetCurrent() -> *mut c_void;
+        fn CFRunLoopAddSource(rl: *mut c_void, source: *mut c_void, mode: *const c_void);
+        fn CFRunLoopRun();
+        fn CGEventGetFlags(event: *mut c_void) -> u64;
+        fn CGEventGetIntegerValueField(event: *mut c_void, field: i32) -> i64;
+    }
+
+    let _ = KB_HOOK_APP_MAC.set(app.clone());
+
+    app.listen("confirm-lock", move |_| {
+        let _ = std::process::Command::new(
+            "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession",
+        )
+        .arg("-suspend")
+        .spawn();
+    });
+
+    std::thread::spawn(move || {
+        unsafe extern "C" fn event_callback(
+            _proxy: *mut c_void,
+            event_type: u32,
+            event: *mut c_void,
+            _user_info: *mut c_void,
+        ) -> *mut c_void {
+            if event_type == 10 /* kCGEventKeyDown */ {
+                let key_code = CGEventGetIntegerValueField(event, 9);
+                let flags = CGEventGetFlags(event);
+                let cmd = 0x100000u64;
+                let ctrl = 0x40000u64;
+                if key_code == 12 && (flags & cmd != 0) && (flags & ctrl != 0) {
+                    if let Some(app) = KB_HOOK_APP_MAC.get() {
+                        emit_pre_lock(app);
+                    }
+                    return std::ptr::null_mut();
+                }
+            }
+            event
+        }
+
+        let event_mask: u64 = 1 << 10;
+
+        let tap = loop {
+            let t = unsafe {
+                CGEventTapCreate(
+                    0,
+                    0,
+                    0,
+                    event_mask,
+                    event_callback,
+                    std::ptr::null_mut(),
+                )
+            };
+            if !t.is_null() {
+                break t;
+            }
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        };
+
+        unsafe {
+            use core_foundation_sys::runloop::kCFRunLoopCommonModes;
+            let source = CFMachPortCreateRunLoopSource(std::ptr::null(), tap, 0);
+            let rl = CFRunLoopGetCurrent();
+            CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes as *const c_void);
+            CFRunLoopRun();
+        }
+    });
 }

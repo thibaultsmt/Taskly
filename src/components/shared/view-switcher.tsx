@@ -23,12 +23,12 @@ function ViewSwitcher({ currentView, onChange, available }: ViewSwitcherProps) {
     : viewOptions
 
   return (
-    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
+    <div className="flex h-7 items-center gap-0.5 rounded-lg border bg-muted/30 p-0.5">
       {options.map(({ id, icon: Icon, label }) => (
         <Button
           key={id}
           variant={currentView === id ? "secondary" : "ghost"}
-          size="icon-sm"
+          size="icon-xs"
           onClick={() => onChange(id)}
           aria-label={label}
           aria-pressed={currentView === id}
@@ -36,7 +36,7 @@ function ViewSwitcher({ currentView, onChange, available }: ViewSwitcherProps) {
             currentView === id && "shadow-sm"
           )}
         >
-          <Icon className="size-3.5" />
+          <Icon className="size-3" />
         </Button>
       ))}
     </div>

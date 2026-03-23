@@ -28,59 +28,37 @@ export const getProjectWorkflowStates = createServerFn({ method: "GET" })
     const session = await getSession()
     if (!session) throw new Error("Unauthenticated")
 
-    const project = await prisma.project.findUniqueOrThrow({
-      where: { id: data.projectId },
-      select: { createdAt: true },
-    })
-
-    // Project-specific states already saved
     const projectStates = await prisma.workflowState.findMany({
       where: { teamId: data.teamId, projectId: data.projectId },
       orderBy: { position: "asc" },
     })
 
-    // Global states that existed strictly before this project was created
-    const globalBeforeProject = await prisma.workflowState.findMany({
-      where: {
-        teamId: data.teamId,
-        projectId: null,
-        createdAt: { lt: project.createdAt },
-      },
-      orderBy: { position: "asc" },
-    })
-
-    // Copy any global state not yet present in this project (on-the-fly migration)
-    const projectNames = new Set(projectStates.map((s) => s.name))
-    const missing = globalBeforeProject.filter((s) => !projectNames.has(s.name))
-
-    if (missing.length > 0) {
-      await prisma.$transaction([
-        // Shift existing project-specific states after the incoming ones
-        ...projectStates.map((s, i) =>
-          prisma.workflowState.update({
-            where: { id: s.id },
-            data: { position: missing.length + i },
-          }),
-        ),
-        // Insert the missing global states at the front
-        ...missing.map((s, i) =>
-          prisma.workflowState.create({
-            data: {
-              name: s.name,
-              type: s.type,
-              color: s.color,
-              position: i,
-              teamId: data.teamId,
-              projectId: data.projectId,
-            },
-          }),
-        ),
-      ])
-
-      return prisma.workflowState.findMany({
-        where: { teamId: data.teamId, projectId: data.projectId },
+    // One-time bootstrap for projects created before createProject copied global states
+    if (projectStates.length === 0) {
+      const globalStates = await prisma.workflowState.findMany({
+        where: { teamId: data.teamId, projectId: null },
         orderBy: { position: "asc" },
       })
+      if (globalStates.length > 0) {
+        await prisma.$transaction(
+          globalStates.map((s) =>
+            prisma.workflowState.create({
+              data: {
+                name: s.name,
+                type: s.type,
+                color: s.color,
+                position: s.position,
+                teamId: data.teamId,
+                projectId: data.projectId,
+              },
+            }),
+          ),
+        )
+        return prisma.workflowState.findMany({
+          where: { teamId: data.teamId, projectId: data.projectId },
+          orderBy: { position: "asc" },
+        })
+      }
     }
 
     return projectStates
@@ -143,7 +121,22 @@ export const deleteWorkflowState = createServerFn({ method: "POST" })
     const session = await getSession()
     if (!session) throw new Error("Unauthenticated")
 
-    await prisma.workflowState.delete({ where: { id: data.id } })
+    const state = await prisma.workflowState.findUniqueOrThrow({ where: { id: data.id } })
+
+    const fallback = await prisma.workflowState.findFirst({
+      where: { teamId: state.teamId, projectId: state.projectId, id: { not: data.id } },
+      orderBy: { position: "asc" },
+    })
+
+    if (!fallback) throw new Error("Impossible de supprimer le dernier statut")
+
+    await prisma.$transaction([
+      prisma.issue.updateMany({
+        where: { workflowStateId: data.id },
+        data: { workflowStateId: fallback.id },
+      }),
+      prisma.workflowState.delete({ where: { id: data.id } }),
+    ])
   })
 
 export const reorderWorkflowStates = createServerFn({ method: "POST" })

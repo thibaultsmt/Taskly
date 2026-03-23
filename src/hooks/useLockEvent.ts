@@ -4,22 +4,35 @@ interface UnlockPayload {
   timestamp: number
 }
 
-export function useLockEvent(onUnlock: (timestamp: number) => void) {
+export function useLockEvent(
+  onUnlock: (timestamp: number) => void,
+  onPreLock?: () => void,
+) {
   useEffect(() => {
     if (typeof window === "undefined" || !window.__TAURI__) return
 
-    let unlisten: (() => void) | undefined
+    let unlistenUnlock: (() => void) | undefined
+    let unlistenPreLock: (() => void) | undefined
 
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen<UnlockPayload>("screen-unlocked", (event) => {
         onUnlock(event.payload.timestamp)
       }).then((fn) => {
-        unlisten = fn
+        unlistenUnlock = fn
       })
+
+      if (onPreLock) {
+        listen<UnlockPayload>("pre-lock", () => {
+          onPreLock()
+        }).then((fn) => {
+          unlistenPreLock = fn
+        })
+      }
     })
 
     return () => {
-      unlisten?.()
+      unlistenUnlock?.()
+      unlistenPreLock?.()
     }
-  }, [onUnlock])
+  }, [onUnlock, onPreLock])
 }

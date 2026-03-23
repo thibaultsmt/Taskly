@@ -6,6 +6,7 @@ import { LabelBadge } from "#/components/shared/label-badge"
 import { AssigneeAvatar } from "#/components/shared/assignee-avatar"
 import { ActionsMenu } from "#/components/shared/actions-menu"
 import type { WorkflowStateType } from "#/components/shared/status-badge"
+import { cn } from "#/lib/utils"
 
 type DbPriority = "none" | "low" | "medium" | "high" | "urgent"
 
@@ -84,6 +85,8 @@ export function IssueRow({
   const visibleLabels = labels.slice(0, 2)
   const extraLabels = labels.length - 2
 
+  const [menuOpen, setMenuOpen] = React.useState(false)
+
   return (
     <div className="group flex items-center gap-3 border-b px-4 py-2 text-sm hover:bg-muted/30 transition-colors">
       <PriorityIcon priority={priority} className="shrink-0" />
@@ -126,9 +129,10 @@ export function IssueRow({
         />
       </div>
 
-      <div className="overflow-hidden w-0 group-hover:w-[22px] transition-all duration-150 shrink-0">
+      <div className={cn("overflow-hidden transition-all duration-150 shrink-0", menuOpen ? "w-[22px]" : "w-0 group-hover:w-[22px]")}>
         <div className="w-[22px] flex items-center justify-center">
         <ActionsMenu
+          onOpenChange={setMenuOpen}
           actions={[
             {
               label: "Modifier",
@@ -213,21 +217,29 @@ function IssueGroup({
 function IssueList({ issues, states, team, onEdit, onDelete, onView }: IssueListProps) {
   const sortedStates = [...states].sort((a, b) => a.position - b.position)
 
+  const stateByName = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const state of states) {
+      map.set(state.name.toLowerCase(), state.id)
+    }
+    return map
+  }, [states])
+
   const grouped = React.useMemo(() => {
     const map = new Map<string, Issue[]>()
     for (const state of sortedStates) {
       map.set(state.id, [])
     }
     for (const issue of issues) {
-      const existing = map.get(issue.workflowStateId)
-      if (existing) {
-        existing.push(issue)
-      } else {
-        map.set(issue.workflowStateId, [issue])
+      let targetId = issue.workflowStateId
+      if (!map.has(targetId) && issue.workflowState) {
+        const fallbackId = stateByName.get(issue.workflowState.name.toLowerCase())
+        if (fallbackId) targetId = fallbackId
       }
+      map.get(targetId)?.push(issue)
     }
     return map
-  }, [issues, sortedStates])
+  }, [issues, sortedStates, stateByName])
 
   return (
     <div className="divide-y">

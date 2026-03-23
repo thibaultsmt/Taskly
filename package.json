@@ -28,6 +28,8 @@
     "@tanstack/router-plugin": "^1.132.0",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/cli": "^2.10.1",
+    "@tauri-apps/plugin-fs": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "ai": "^4.3.19",
     "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",

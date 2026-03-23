@@ -45,11 +45,15 @@ function StatutsPage() {
   const updateMutation = useMutation({
     mutationFn: (vars: { id: string; name: string; color: string }) =>
       updateWorkflowState({ data: vars }),
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       void queryClient.invalidateQueries({ queryKey: ["workflow-states", teamId] })
       setEditingId(null)
+      sileo.success({
+        title: "Statut mis à jour",
+        description: `"${vars.name}" fait peau neuve. On espère que personne n'était trop attaché à l'ancien.`,
+      })
     },
-    onError: (e: Error) => sileo.error({ title: e.message }),
+    onError: (e: Error) => sileo.error({ title: "Raté", description: e.message }),
   })
 
   const createMutation = useMutation({
@@ -60,16 +64,24 @@ function StatutsPage() {
       setNewName("")
       setNewColor("#6b7280")
       setShowNew(false)
+      sileo.success({
+        title: "Statut créé",
+        description: `"${newName.trim()}" est dans la place. Les issues ont hâte de l'utiliser.`,
+      })
     },
-    onError: (e: Error) => sileo.error({ title: e.message }),
+    onError: (e: Error) => sileo.error({ title: "Raté", description: e.message }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteWorkflowState({ data: { id } }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["workflow-states", teamId] })
+      sileo.success({
+        title: "Statut supprimé",
+        description: "Disparu. Les issues orphelines pleurent en silence.",
+      })
     },
-    onError: (e: Error) => sileo.error({ title: e.message }),
+    onError: (e: Error) => sileo.error({ title: "Raté", description: e.message }),
   })
 
   function startEdit(state: WorkflowState) {

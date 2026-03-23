@@ -46,7 +46,7 @@ function RootContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <Toaster position="bottom-right" theme={sileoTheme} />
+      <Toaster position="bottom-center" theme={sileoTheme} />
       <TanStackDevtools
         config={{ position: "bottom-right" }}
         plugins={[{ name: "Tanstack Router", render: <TanStackRouterDevtoolsPanel /> }]}
@@ -62,7 +62,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased" suppressHydrationWarning>
         {children}
         <Scripts />
       </body>

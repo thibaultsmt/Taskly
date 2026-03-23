@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { z } from "zod"
 import { Plus, Search, ChevronDown } from "lucide-react"
+import { sileo } from "sileo"
 import { issuesQueryOptions, deleteIssue } from "#/server/issues"
 import { teamQueryOptions } from "#/server/teams"
 import { Button } from "#/components/ui/button"
@@ -183,9 +184,27 @@ function IssuesPage() {
     return list
   }, [issues, search, searchQuery])
 
+  function toastFill() {
+    return document.documentElement.classList.contains("dark") ? "#1a1a1a" : "#f9f9f9"
+  }
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: (issueId: string) => deleteIssue({ data: { issueId } }),
+    onSuccess: () => {
+      sileo.success({
+        title: "Issue supprimée",
+        description: "Elle retourne au néant d'où elle vient. Repose en paix.",
+        fill: toastFill(),
+      })
+    },
+    onError: (e: Error) => {
+      sileo.error({
+        title: "Raté",
+        description: e.message,
+        fill: toastFill(),
+      })
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: issuesQueryOptions(teamId).queryKey })
     },
@@ -212,17 +231,9 @@ function IssuesPage() {
               placeholder="Rechercher…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-44 rounded-lg border border-input bg-transparent pl-8 pr-3 py-1.5 text-sm outline-none focus:border-ring focus:w-56 transition-all placeholder:text-muted-foreground"
+              className="h-7 w-44 rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm outline-none focus:border-ring focus:w-56 transition-all placeholder:text-muted-foreground"
             />
           </div>
-          <FilterBar
-            filters={filters}
-            onFilterChange={updateFilters}
-            workflowStates={team.workflowStates}
-            labels={team.labels}
-            members={filterMembers}
-            projects={team.projects}
-          />
           <div className="relative inline-flex h-7 items-center">
             <select
               value={`${search.sort ?? "number"}:${search.dir ?? "desc"}`}
@@ -241,6 +252,14 @@ function IssuesPage() {
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 size-3 text-muted-foreground" />
           </div>
+          <FilterBar
+            filters={filters}
+            onFilterChange={updateFilters}
+            workflowStates={currentView === "by-status" ? undefined : team.workflowStates}
+            labels={team.labels}
+            members={filterMembers}
+            projects={team.projects}
+          />
           <ViewSwitcher
             currentView={currentView}
             available={["list", "by-status"]}

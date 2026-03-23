@@ -28,6 +28,7 @@ import { UserSelector } from "#/components/shared/user-selector"
 import { DateSubPanel, formatDate, startOfDay } from "#/components/shared/date-picker"
 import { LabelBadge } from "#/components/shared/label-badge"
 import { cn } from "#/lib/utils"
+import { sileo } from "sileo"
 
 const issueSchema = z.object({
   title: z.string().min(1, "Le titre est requis").max(255, "Titre trop long"),
@@ -193,6 +194,11 @@ function LabelMultiSelect({
 
 function IssueDialog({ mode, issue, teamId, team, open, onOpenChange, defaultProjectId }: IssueDialogProps) {
   const queryClient = useQueryClient()
+
+  function toastFill() {
+    return document.documentElement.classList.contains("dark") ? "#1a1a1a" : "#f9f9f9"
+  }
+
   const [createMore, setCreateMore] = React.useState(false)
 
   // Map members for UserSelector — value tracked as member.id, but we save userName
@@ -248,6 +254,20 @@ function IssueDialog({ mode, issue, teamId, team, open, onOpenChange, defaultPro
       startDate?: string | null
       dueDate?: string | null
     }) => createIssue({ data: { teamId, ...data } }),
+    onSuccess: () => {
+      sileo.success({
+        title: "Issue créée",
+        description: "Elle rejoint officiellement le backlog. Courage.",
+        fill: toastFill(),
+      })
+    },
+    onError: () => {
+      sileo.error({
+        title: "Raté",
+        description: "L'issue refuse de naître. Réessayez.",
+        fill: toastFill(),
+      })
+    },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: issuesQueryOptions(teamId).queryKey })
     },
@@ -269,6 +289,20 @@ function IssueDialog({ mode, issue, teamId, team, open, onOpenChange, defaultPro
       startDate?: string | null
       dueDate?: string | null
     }) => updateIssue({ data }),
+    onSuccess: () => {
+      sileo.success({
+        title: "Issue mise à jour",
+        description: "Modifiée. Comme si ce n'était jamais arrivé.",
+        fill: toastFill(),
+      })
+    },
+    onError: () => {
+      sileo.error({
+        title: "Raté",
+        description: "La mise à jour a échoué. L'issue résiste.",
+        fill: toastFill(),
+      })
+    },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: issuesQueryOptions(teamId).queryKey })
     },

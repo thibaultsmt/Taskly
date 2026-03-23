@@ -50,6 +50,9 @@ export const updateTask = createServerFn({ method: "POST" })
       priority: z.string().optional(),
       startDate: z.string().optional().nullable(),
       dueDate: z.string().optional().nullable(),
+      note: z.string().optional().nullable(),
+      attachments: z.array(z.string()).optional(),
+      links: z.array(z.string()).optional(),
     }),
   )
   .handler(async ({ data }) => {

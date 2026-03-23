@@ -1,5 +1,5 @@
 import * as React from "react"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router"
 import { useSuspenseQuery } from "@tanstack/react-query"
 import {
   BarChart,
@@ -24,6 +24,7 @@ import {
 import { StatCardSkeleton } from "#/components/ui/skeletons"
 import { PriorityIcon, type Priority } from "#/components/shared/priority-icon"
 import { StatusBadge, type WorkflowStateType } from "#/components/shared/status-badge"
+import { cn } from "#/lib/utils"
 
 export const Route = createFileRoute("/_app/teams/$teamId/management/")({
   loader: ({ context: { queryClient }, params: { teamId } }) =>
@@ -34,6 +35,35 @@ export const Route = createFileRoute("/_app/teams/$teamId/management/")({
   ),
   component: ManagementPage,
 })
+
+// ── Chart tooltip ─────────────────────────────────────────────────────────────
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; payload?: { fill?: string; name?: string } }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+  const entry = payload[0]
+  const fill = entry.payload?.fill
+  const displayLabel = label || entry.payload?.name || entry.name
+
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
+      <div className="flex items-center gap-2">
+        {fill && (
+          <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: fill }} />
+        )}
+        <span className="font-medium text-popover-foreground">{displayLabel}</span>
+        <span className="tabular-nums text-muted-foreground">{entry.value}</span>
+      </div>
+    </div>
+  )
+}
 
 // ── Priority helpers ──────────────────────────────────────────────────────────
 
@@ -127,7 +157,7 @@ function PriorityBarChart({ data }: { data: PriorityBreakdownItem[] }) {
       <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 4 }}>
         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
         <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-        <Tooltip />
+        <Tooltip cursor={{ fill: "rgba(100,116,139,0.08)" }} content={<ChartTooltip />} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {chartData.map((entry, index) => (
             <Cell key={index} fill={entry.fill} />
@@ -181,7 +211,7 @@ function StatusPieChart({ data }: { data: StatusBreakdownItem[] }) {
             <Cell key={index} fill={entry.fill} />
           ))}
         </Pie>
-        <Tooltip formatter={(value: number, name: string) => [value, name]} />
+        <Tooltip content={<ChartTooltip />} />
         <Legend
           formatter={(value: string) => value}
           iconSize={8}
@@ -227,7 +257,7 @@ function RecentIssuesList({
           className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
           onClick={() =>
             void navigate({
-              to: "/teams/$teamId/issues",
+              to: "/teams/$teamId/tasks",
               params: { teamId },
             })
           }
@@ -273,6 +303,19 @@ function ManagementPageSkeleton() {
 function ManagementPage() {
   const { teamId } = Route.useParams()
   const { data: stats } = useSuspenseQuery(teamStatsQueryOptions(teamId))
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const [chartsVisible, setChartsVisible] = React.useState(true)
+  const leftRef = React.useRef(false)
+
+  React.useEffect(() => {
+    const isHere = pathname.includes("/management")
+    if (!isHere) { leftRef.current = true; return }
+    if (!leftRef.current) return
+    leftRef.current = false
+    setChartsVisible(false)
+    const id = requestAnimationFrame(() => setChartsVisible(true))
+    return () => cancelAnimationFrame(id)
+  }, [pathname])
 
   return (
     <div className="flex flex-col h-full">
@@ -314,7 +357,7 @@ function ManagementPage() {
             <CardTitle className="text-sm">Issues by Priority</CardTitle>
           </CardHeader>
           <CardContent>
-            <PriorityBarChart data={stats.priorityBreakdown} />
+            {chartsVisible && <PriorityBarChart data={stats.priorityBreakdown} />}
           </CardContent>
         </Card>
         <Card>
@@ -322,7 +365,7 @@ function ManagementPage() {
             <CardTitle className="text-sm">Issues by Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <StatusPieChart data={stats.statusBreakdown} />
+            {chartsVisible && <StatusPieChart data={stats.statusBreakdown} />}
           </CardContent>
         </Card>
       </div>
@@ -336,7 +379,92 @@ function ManagementPage() {
           <RecentIssuesList issues={stats.recentIssues} teamId={teamId} />
         </CardContent>
       </Card>
+
+      {typeof window !== "undefined" && !!window.__TAURI__ && (
+        <DesktopPreferences />
+      )}
       </div>
     </div>
+  )
+}
+
+// ── ToggleRow ─────────────────────────────────────────────────────────────────
+
+function ToggleRow({
+  label,
+  description,
+  storageKey,
+  defaultOn = false,
+}: {
+  label: string
+  description: string
+  storageKey: string
+  defaultOn?: boolean
+}) {
+  const [enabled, setEnabled] = React.useState(() => {
+    if (typeof window === "undefined") return defaultOn
+    const val = localStorage.getItem(storageKey)
+    return val === null ? defaultOn : val === "true"
+  })
+
+  function toggle() {
+    const next = !enabled
+    setEnabled(next)
+    localStorage.setItem(storageKey, String(next))
+  }
+
+  return (
+    <div className="flex items-center justify-between py-3 border-b last:border-0">
+      <div className="flex-1 min-w-0 pr-4">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={enabled}
+        onClick={toggle}
+        className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+          enabled ? "bg-primary" : "bg-input",
+        )}
+      >
+        <span
+          className={cn(
+            "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+            enabled ? "translate-x-4" : "translate-x-0",
+          )}
+        />
+      </button>
+    </div>
+  )
+}
+
+// ── DesktopPreferences ────────────────────────────────────────────────────────
+
+function DesktopPreferences() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Préférences desktop</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Paramètres spécifiques à l'application Tauri.
+        </p>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ToggleRow
+          label="Fermer l'application complètement"
+          description="Par défaut, fermer la fenêtre minimise l'app en tâche de fond. Activez pour quitter vraiment."
+          storageKey="tauri-close-behavior"
+          defaultOn={false}
+        />
+        <ToggleRow
+          label="Désactiver la fenêtre de tâche au verrouillage"
+          description="Désactive la modal qui apparaît quand vous verrouillez votre PC avec ⌘+Ctrl+Q ou Win+L."
+          storageKey="disable-lock-modal"
+          defaultOn={false}
+        />
+      </CardContent>
+    </Card>
   )
 }

@@ -10,7 +10,7 @@ import { projectWorkflowStatesQueryOptions } from "#/server/workflow-states"
 import { Button } from "#/components/ui/button"
 import { ViewSwitcher, type View } from "#/components/shared/view-switcher"
 import { IssueBoard } from "#/components/issues/IssueBoard"
-import { IssueTable } from "#/components/issues/IssueTable"
+import { IssueTable, type EditDraft } from "#/components/issues/IssueTable"
 import { IssueDialog } from "#/components/issues/IssueDialog"
 import { IssueDetailModal } from "#/components/issues/IssueDetailModal"
 import { FilterBar, type Filters, type DbPriority } from "#/components/shared/filter-bar"
@@ -133,6 +133,12 @@ function ProjectDetailPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: issuesQueryOptions(teamId).queryKey }),
   })
 
+  const saveMutation = useMutation({
+    mutationFn: ({ issueId, draft }: { issueId: string; draft: EditDraft }) =>
+      updateIssue({ data: { issueId, title: draft.title, workflowStateId: draft.workflowStateId, priority: draft.priority, assignee: draft.assignee, projectId: draft.projectId, startDate: draft.startDate, dueDate: draft.dueDate } }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: issuesQueryOptions(teamId).queryKey }),
+  })
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -155,11 +161,6 @@ function ProjectDetailPage() {
           <span className="text-sm text-muted-foreground">({projectIssues.length})</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <FilterBar
-            filters={filters}
-            onFilterChange={setFilters}
-            members={filterMembers}
-          />
           <div className="relative inline-flex h-7 items-center">
             <select
               value={sortBy}
@@ -172,6 +173,11 @@ function ProjectDetailPage() {
             </select>
             <ChevronDown className="pointer-events-none absolute right-2 size-3 text-muted-foreground" />
           </div>
+          <FilterBar
+            filters={filters}
+            onFilterChange={setFilters}
+            members={filterMembers}
+          />
           <ViewSwitcher
             currentView={view as View}
             available={["board", "table"]}
@@ -179,9 +185,9 @@ function ProjectDetailPage() {
               navigate({ search: (prev) => ({ ...prev, view: v as "board" | "table" }) })
             }
           />
-          <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+          <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
-            Add issues
+            Nouvelle issue
           </Button>
         </div>
       </div>
@@ -205,8 +211,10 @@ function ProjectDetailPage() {
           <IssueTable
             issues={sortedIssues}
             team={team}
+            workflowStates={projectStates}
             onEdit={(issue) => setEditIssue(issue as Issue)}
             onView={(issue) => setViewIssue(issue as Issue)}
+            onSave={(issueId, draft) => saveMutation.mutate({ issueId, draft })}
           />
         )}
       </div>

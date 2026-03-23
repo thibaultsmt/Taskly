@@ -18,11 +18,12 @@ interface Action {
 interface ActionsMenuProps {
   actions: Action[]
   className?: string
+  onOpenChange?: (open: boolean) => void
 }
 
-function ActionsMenu({ actions, className }: ActionsMenuProps) {
+function ActionsMenu({ actions, className, onOpenChange }: ActionsMenuProps) {
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
         className={className}
         onClick={(e) => e.stopPropagation()}

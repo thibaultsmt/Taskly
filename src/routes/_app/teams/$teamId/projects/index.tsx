@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_app/teams/$teamId/projects/")({
     status: z
       .enum(["all", "active", "completed", "canceled"])
       .optional()
-      .default("active"),
+      .default("all"),
   }),
   loader: async ({ context, params }) => {
     const { queryClient } = context as {
@@ -53,9 +53,9 @@ export const Route = createFileRoute("/_app/teams/$teamId/projects/")({
 // ─── StatusTabs ───────────────────────────────────────────────────────────────
 
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
+  { value: "all", label: "Tous" },
+  { value: "active", label: "Actif" },
+  { value: "completed", label: "Terminé" },
 ]
 
 function StatusTabs({
@@ -72,10 +72,10 @@ function StatusTabs({
           key={tab.value}
           onClick={() => onChange(tab.value)}
           className={cn(
-            "px-2.5 py-1 text-sm rounded capitalize transition-colors",
+            "px-2.5 py-1 text-xs rounded capitalize transition-colors cursor-pointer",
             value === tab.value
               ? "bg-accent text-accent-foreground"
-              : "hover:bg-muted"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted",
           )}
         >
           {tab.label}
@@ -132,7 +132,10 @@ function ProjectsPage() {
         projectsQueryOptions(teamId).queryKey,
         ctx?.prev
       )
-      sileo.error({ title: "Failed to delete project" })
+      sileo.error({
+        title: "Raté",
+        description: "Le projet refuse de mourir. Réessayez.",
+      })
     },
     onSettled: () => {
       queryClient.invalidateQueries({
@@ -140,7 +143,10 @@ function ProjectsPage() {
       })
     },
     onSuccess: () => {
-      sileo.success({ title: "Project deleted" })
+      sileo.success({
+        title: "Projet supprimé",
+        description: "Et voilà. Comme s'il n'avait jamais existé.",
+      })
     },
   })
 
@@ -152,10 +158,16 @@ function ProjectsPage() {
       queryClient.invalidateQueries({
         queryKey: projectsQueryOptions(teamId).queryKey,
       })
-      sileo.success({ title: "Project duplicated" })
+      sileo.success({
+        title: "Projet dupliqué",
+        description: "Le clone est parmi nous. On espère qu'il se comportera bien.",
+      })
     },
     onError: () => {
-      sileo.error({ title: "Failed to duplicate project" })
+      sileo.error({
+        title: "Raté",
+        description: "La duplication a échoué. Le projet est unique, apparemment.",
+      })
     },
   })
 
@@ -189,7 +201,7 @@ function ProjectsPage() {
               placeholder="Rechercher…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-44 rounded-lg border border-input bg-transparent pl-8 pr-3 py-1.5 text-sm outline-none focus:border-ring focus:w-56 transition-all placeholder:text-muted-foreground"
+              className="h-7 w-44 rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm outline-none focus:border-ring focus:w-56 transition-all placeholder:text-muted-foreground"
             />
           </div>
           <StatusTabs

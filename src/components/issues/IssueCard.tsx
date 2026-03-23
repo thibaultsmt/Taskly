@@ -1,3 +1,4 @@
+import * as React from "react"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { PriorityIcon } from "#/components/shared/priority-icon"
 import { LabelBadge } from "#/components/shared/label-badge"
@@ -61,6 +62,7 @@ interface IssueCardProps {
 function IssueCard({ issue, teamKey, onEdit, onDelete, onView, isDragging, className }: IssueCardProps) {
   const priority = DB_TO_PRIORITY[issue.priority as DbPriority] ?? "NO_PRIORITY"
   const labels = issue.labels ?? []
+  const [menuOpen, setMenuOpen] = React.useState(false)
 
   return (
     <div
@@ -77,9 +79,9 @@ function IssueCard({ issue, teamKey, onEdit, onDelete, onView, isDragging, class
         </span>
         <div className="flex items-center shrink-0">
           <PriorityIcon priority={priority} />
-          <div className="overflow-hidden w-0 group-hover:w-[22px] transition-all duration-150">
+          <div className={cn("overflow-hidden transition-all duration-150", menuOpen ? "w-[22px]" : "w-0 group-hover:w-[22px]")}>
             <div className="w-[22px] flex items-center justify-center">
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
               onClick={(e) => e.stopPropagation()}
               className="p-0.5 rounded cursor-pointer text-muted-foreground hover:text-foreground"

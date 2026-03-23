@@ -33,7 +33,7 @@ function InvitePage() {
     onSuccess: (result) => {
       sileo.success({ title: "Welcome to the team!" })
       void navigate({
-        to: "/teams/$teamId/issues",
+        to: "/teams/$teamId/tasks",
         params: { teamId: result.teamId },
       })
     },

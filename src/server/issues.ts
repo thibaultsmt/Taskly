@@ -155,7 +155,7 @@ export const updateIssue = createServerFn({ method: "POST" })
       priority: z.string().optional(),
       workflowStateId: z.string().optional(),
       assigneeId: z.string().optional(),
-      assignee: z.string().optional(),
+      assignee: z.string().nullable().optional(),
       projectId: z.string().nullable().optional(),
       startDate: z.string().optional().nullable(),
       dueDate: z.string().optional().nullable(),

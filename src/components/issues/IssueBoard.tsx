@@ -88,6 +88,7 @@ function StateFormDialog({
   teamId,
   projectId,
   mode,
+  issueCount = 0,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
@@ -95,6 +96,7 @@ function StateFormDialog({
   teamId: string
   projectId?: string
   mode: "create" | "edit"
+  issueCount?: number
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = React.useState(initial?.name ?? "")
@@ -179,6 +181,12 @@ function StateFormDialog({
             </div>
           </div>
         </div>
+
+        {mode === "edit" && issueCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {issueCount} issue{issueCount > 1 ? "s" : ""} sera{issueCount > 1 ? "ont" : ""} déplacée{issueCount > 1 ? "s" : ""} vers le statut suivant.
+          </p>
+        )}
 
         <DialogFooter>
           {mode === "edit" && (
@@ -274,6 +282,7 @@ function ColumnHeader({
         teamId={teamId}
         projectId={projectId}
         mode="edit"
+        issueCount={count}
       />
     </>
   )
